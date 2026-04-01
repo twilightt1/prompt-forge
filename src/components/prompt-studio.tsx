@@ -1,13 +1,271 @@
 "use client";
-import React, { useState } from "react";
+
+import { useEffect, useMemo, useState } from "react";
+import { enhancePrompt, promptModes, type PromptMode } from "@/lib/prompt-engine";
+import { promptTemplates } from "@/lib/templates";
+import type { AiEnhanceResult, AiPromptAnalysis, AiPromptTestResult } from "@/lib/ai-result";
+import type { EnhanceLanguage, EnhanceStrength, EnhanceStyle } from "@/lib/enhance-options";
+
+type ResultTab = "prompt" | "evaluate" | "questions" | "variants" | "changes" | "checklist" | "export";
+type StudioResult = AiEnhanceResult;
+
+type HistoryItem = {
+  id: string;
+  mode: PromptMode;
+  input: string;
+  output: string;
+  score: number;
+  createdAt: string;
+  source: AiEnhanceResult["source"];
+  favorite: boolean;
+};
+
+const starterPrompt = "Build me a sleek SaaS landing page for an AI prompt optimizer that helps creators and developers get better outputs from ChatGPT.";
+const tabs: ResultTab[] = ["prompt", "evaluate", "questions", "variants", "changes", "checklist", "export"];
+
 export function PromptStudio() {
-  const [input, setInput] = useState("Write a landing page.");
+  const [input, setInput] = useState(starterPrompt);
+  const [mode, setMode] = useState<PromptMode>("marketing");
+  const [language, setLanguage] = useState<EnhanceLanguage>("auto");
+  const [strength, setStrength] = useState<EnhanceStrength>("balanced");
+  const [style, setStyle] = useState<EnhanceStyle>("professional");
+  const [activeTab, setActiveTab] = useState<ResultTab>("prompt");
+  const [result, setResult] = useState<StudioResult>(() => ({
+    ...enhancePrompt(starterPrompt, "marketing"),
+    source: "local-fallback",
+    model: "local diagnostics",
+  }));
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [analysis, setAnalysis] = useState<AiPromptAnalysis | null>(null);
+  const [questionAnswers, setQuestionAnswers] = useState<string[]>([]);
+  const [sampleInput, setSampleInput] = useState("");
+  const [testResult, setTestResult] = useState<AiPromptTestResult | null>(null);
+
+  const wordCount = useMemo(() => input.trim().split(/\s+/).filter(Boolean).length, [input]);
+  const activeMode = promptModes.find((item) => item.id === mode);
+  const displayScore = result.evaluation?.score ?? result.score;
+  const displayGrade = result.evaluation?.grade ?? result.grade;
+  const exportContent = `# ${result.metadata?.title ?? "Enhanced Prompt"}\n\nScore: ${displayScore}/100 (${displayGrade})\nSource: ${result.source}\nModel: ${result.model ?? "unknown"}\n\n## Prompt\n\n\`\`\`text\n${result.enhancedPrompt}\n\`\`\`\n\n## Summary\n${result.summary}\n\n## Improvements\n${result.improvements.map((item) => `- ${item}`).join("\n")}\n\n## Issues\n${result.evaluation?.issues?.map((item) => `- ${item}`).join("\n") ?? ""}\n\n## Suggestions\n${result.evaluation?.suggestions?.map((item) => `- ${item}`).join("\n") ?? ""}\n\n## Clarifying Questions\n${result.clarifyingQuestions?.map((item) => `- ${item}`).join("\n") ?? ""}`;
+
+  const filteredHistory = useMemo(() => {
+    const query = historyQuery.toLowerCase().trim();
+    return history
+      .filter((item) => !query || item.input.toLowerCase().includes(query) || item.output.toLowerCase().includes(query))
+      .sort((a, b) => Number(b.favorite) - Number(a.favorite));
+  }, [history, historyQuery]);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem("promptforge-history");
+    if (!stored) return;
+    queueMicrotask(() => setHistory(JSON.parse(stored) as HistoryItem[]));
+  }, []);
+
+  function persistHistory(items: HistoryItem[]) {
+    setHistory(items);
+    window.localStorage.setItem("promptforge-history", JSON.stringify(items));
+  }
+
+  function saveResult(nextInput: string, nextMode: PromptMode, enhanced: StudioResult) {
+    setResult(enhanced);
+    setActiveTab("prompt");
+    persistHistory([
+      {
+        id: crypto.randomUUID(),
+        mode: nextMode,
+        input: nextInput,
+        output: enhanced.enhancedPrompt,
+        score: enhanced.evaluation?.score ?? enhanced.score,
+        source: enhanced.source ?? "llm",
+        favorite: false,
+        createdAt: new Date().toLocaleString(),
+      },
+      ...history,
+    ].slice(0, 12));
+  }
+
+  async function runAnalyze() {
+    setIsAnalyzing(true);
+    setErrorMessage("");
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error ?? "AI analysis failed");
+      setAnalysis(payload as AiPromptAnalysis);
+      setQuestionAnswers(((payload as AiPromptAnalysis).questions ?? []).map(() => ""));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "AI analysis failed");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }
+
+  async function runEnhance(nextInput = input, nextMode = mode) {
+    setIsEnhancing(true);
+    setErrorMessage("");
+
+    try {
+      const response = await fetch("/api/enhance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          input: nextInput,
+          mode: nextMode,
+          language,
+          strength,
+          style,
+          analysisContext: analysis ? { ...analysis, answers: questionAnswers } : undefined,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error ?? "AI enhancement API failed");
+      saveResult(nextInput, nextMode, payload as StudioResult);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "AI enhancement failed");
+    } finally {
+      setIsEnhancing(false);
+    }
+  }
+
+  async function runTestPrompt() {
+    setIsTesting(true);
+    setErrorMessage("");
+    try {
+      const response = await fetch("/api/test-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: result.enhancedPrompt, sampleInput }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error ?? "Prompt test failed");
+      setTestResult(payload as AiPromptTestResult);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Prompt test failed");
+    } finally {
+      setIsTesting(false);
+    }
+  }
+
+  async function copyPrompt() {
+    await navigator.clipboard.writeText(result.enhancedPrompt);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  }
+
+  function exportMarkdown() {
+    const blob = new Blob([exportContent], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "enhanced-prompt.md";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function applyTemplate(index: number) {
+    const template = promptTemplates[index];
+    setInput(template.prompt);
+    setMode(template.mode);
+  }
+
+  function toggleFavorite(id: string) {
+    persistHistory(history.map((item) => item.id === id ? { ...item, favorite: !item.favorite } : item));
+  }
+
+  function restoreHistory(item: HistoryItem) {
+    setInput(item.input);
+    setMode(item.mode);
+    setResult({ ...enhancePrompt(item.input, item.mode), enhancedPrompt: item.output, source: item.source });
+    setActiveTab("prompt");
+  }
+
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-gray-100 p-8">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold mb-4">PromptForge</h1>
-        <textarea value={input} onChange={e => setInput(e.target.value)} className="w-full h-32 bg-zinc-900 border border-zinc-800 rounded p-2" />
-      </div>
+    <main className="app-shell">
+      <header className="hero-panel">
+        <nav className="nav-bar" aria-label="Application summary">
+          <div className="brand-mark">PF</div>
+          <div>
+            <strong>PromptForge</strong>
+            <span>AI Prompt Consultant</span>
+          </div>
+          <p className="api-status">OpenAI-compatible</p>
+        </nav>
+
+        <section className="hero-content">
+          <div>
+            <p className="eyebrow">Professional prompt workflow</p>
+            <h1>Rewrite, evaluate, and ship better prompts.</h1>
+            <p>
+              Nhập prompt thô, chọn ngữ cảnh, để AI tư vấn cách rewrite, chấm điểm,
+              tạo variants và checklist để prompt sẵn sàng dùng trong sản phẩm thật.
+            </p>
+            <div className="hero-actions">
+              <a href="#workspace" className="hero-link primary">Start enhancing</a>
+              <a href="#templates" className="hero-link">Use template</a>
+            </div>
+          </div>
+          <div className="hero-metrics" aria-label="Current prompt metrics">
+            <article><span>Score</span><strong>{displayScore}</strong><small>{displayGrade}</small></article>
+            <article><span>Mode</span><strong>{activeMode?.label ?? mode}</strong><small>{style}</small></article>
+            <article><span>Engine</span><strong>{result.source === "llm" ? "AI" : "Local"}</strong><small>{result.model ?? "diagnostics"}</small></article>
+          </div>
+        </section>
+      </header>
+
+      <section id="workspace" className="workspace-grid" aria-label="Prompt consultant workspace">
+        <aside className="panel control-panel">
+          <div className="panel-title">
+            <span className="step-badge">01</span>
+            <div><p className="section-kicker">Setup</p><h2>Controls</h2></div>
+          </div>
+
+          <div className="field-stack">
+            <label>Mode<select value={mode} onChange={(event) => setMode(event.target.value as PromptMode)}>{promptModes.map((promptMode) => <option key={promptMode.id} value={promptMode.id}>{promptMode.label}</option>)}</select></label>
+            <label>Language<select value={language} onChange={(event) => setLanguage(event.target.value as EnhanceLanguage)}><option value="auto">Auto</option><option value="english">English</option><option value="vietnamese">Vietnamese</option><option value="bilingual">Bilingual</option></select></label>
+            <label>Strength<select value={strength} onChange={(event) => setStrength(event.target.value as EnhanceStrength)}><option value="light">Light rewrite</option><option value="balanced">Balanced</option><option value="deep">Deep consultant</option></select></label>
+            <label>Style<select value={style} onChange={(event) => setStyle(event.target.value as EnhanceStyle)}><option value="professional">Professional</option><option value="creative">Creative</option><option value="technical">Technical</option><option value="concise">Concise</option></select></label>
+          </div>
+
+          <div className="workflow-actions">
+            <button className="secondary-action" type="button" onClick={() => void runAnalyze()} disabled={isAnalyzing || !input.trim()}>
+              {isAnalyzing ? "Analyzing..." : "Analyze prompt"}
+            </button>
+            {analysis && <button className="secondary-action" type="button" onClick={() => setMode(analysis.recommendedMode)}>Apply {analysis.recommendedMode}</button>}
+          </div>
+
+          {analysis && <div className="analysis-card">
+            <span className="risk-chip" data-risk={analysis.riskLevel}>{analysis.riskLevel} risk</span>
+            <h3>{analysis.intent}</h3>
+            <p>{analysis.strategyReason}</p>
+            <div className="mini-list"><strong>Missing info</strong>{analysis.missingInfo.map((item) => <span key={item}>{item}</span>)}</div>
+          </div>}
+
+          <div className="tip-card">
+            <strong>Workflow</strong>
+            <p>Analyze trước để AI phát hiện intent và câu hỏi thiếu dữ liệu, sau đó enhance và test prompt.</p>
+          </div>
+        </aside>
+
+        <section id="templates" className="panel">
+          <div className="section-heading"><div><p className="section-kicker">Templates</p><h2>Quick starts</h2></div></div>
+          <div className="template-list">{promptTemplates.slice(0, 6).map((template, index) => <button className="template-row" key={template.title} type="button" onClick={() => applyTemplate(index)}><span>{template.tag}</span><strong>{template.title}</strong><p>{template.prompt}</p></button>)}</div>
+        </section>
+
+        <section className="panel history-panel" aria-labelledby="history-title">
+          <div className="section-heading"><div><p className="section-kicker">Library</p><h2 id="history-title">Recent prompts</h2></div><button className="secondary-action" type="button" onClick={() => persistHistory([])}>Clear</button></div>
+          <input className="history-search" value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder="Search history..." />
+          {filteredHistory.length === 0 ? <p className="empty-state">Chưa có prompt nào được lưu.</p> : <div className="history-list compact">{filteredHistory.map((item) => <article className="history-item" key={item.id}><button type="button" onClick={() => restoreHistory(item)}><span>{item.createdAt}</span><strong>{item.score}/100</strong><p>{item.input}</p></button><button className="favorite-button" type="button" onClick={() => toggleFavorite(item.id)}>{item.favorite ? "★" : "☆"}</button></article>)}</div>}
+        </section>
+      </section>
     </main>
   );
 }
