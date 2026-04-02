@@ -255,16 +255,53 @@ export function PromptStudio() {
           </div>
         </aside>
 
+        <section className="panel compose-panel">
+          <div className="panel-title split">
+            <div className="panel-title"><span className="step-badge">02</span><div><p className="section-kicker">Input</p><h2>Prompt draft</h2></div></div>
+            <span className="word-pill">{wordCount} words</span>
+          </div>
+          <textarea id="prompt-input" value={input} onChange={(event) => setInput(event.target.value)} placeholder="Nhập prompt cần rewrite..." />
+          {analysis?.questions?.length ? <div className="question-stack">
+            <strong>Clarifying answers</strong>
+            {analysis.questions.map((question, index) => <label key={question}>{question}<input value={questionAnswers[index] ?? ""} onChange={(event) => setQuestionAnswers(questionAnswers.map((answer, answerIndex) => answerIndex === index ? event.target.value : answer))} placeholder="Optional answer..." /></label>)}
+          </div> : null}
+          {errorMessage && <p className="error-banner">{errorMessage}</p>}
+          <button id="enhance-button" className="primary-action" type="button" onClick={() => void runEnhance()} disabled={isEnhancing || !input.trim()}>
+            {isEnhancing ? "AI is consulting..." : "Enhance with AI"}<span>{isEnhancing ? "✦" : "→"}</span>
+          </button>
+        </section>
+
+        <section className="panel result-panel"><p>Results loading...</p></section><section className="consultant-card"><h3>Issues</h3><ul>{(result.evaluation?.issues?.length ? result.evaluation.issues : ["No major issues returned by AI."]).map((item) => <li key={item}>{item}</li>)}</ul></section><section className="consultant-card"><h3>Suggestions</h3><ul>{(result.evaluation?.suggestions?.length ? result.evaluation.suggestions : result.improvements).map((item) => <li key={item}>{item}</li>)}</ul></section><section className="consultant-card wide"><h3>Criteria</h3><div className="metrics-list">{(result.evaluation?.criteria ?? result.metrics).map((metric) => <article className="metric" key={metric.label}><div><strong>{metric.label}</strong><span>{metric.insight}</span></div><div className="meter" aria-hidden="true"><i style={{ width: `${metric.score}%` }} /></div><b>{metric.score}</b></article>)}</div></section></div>}
+          {!isEnhancing && activeTab === "questions" && <div className="card-list">{(result.clarifyingQuestions?.length ? result.clarifyingQuestions : ["No clarifying questions needed."]).map((question, index) => <article className="consultant-card" key={question}><span className="card-index">Q{index + 1}</span><p>{question}</p></article>)}</div>}
+          {!isEnhancing && activeTab === "variants" && <div className="variant-grid">{(result.variants?.length ? result.variants : [{ name: "Enhanced", prompt: result.enhancedPrompt, bestFor: "Default use" }]).map((variant) => <article className="variant-card" key={variant.name}><div><h3>{variant.name}</h3><span>{variant.bestFor}</span></div><pre>{variant.prompt}</pre><button className="secondary-action" type="button" onClick={() => navigator.clipboard.writeText(variant.prompt)}>Copy variant</button></article>)}</div>}
+          {!isEnhancing && activeTab === "changes" && <div className="card-list">{(result.changes?.length ? result.changes : [{ title: "Prompt rewritten", before: input, after: result.enhancedPrompt, reason: "AI improved structure and specificity." }]).map((change) => <article className="change-card" key={change.title}><h3>{change.title}</h3><div className="diff-grid"><article><span>Before</span><p>{change.before}</p></article><article><span>After</span><p>{change.after}</p></article></div><p>{change.reason}</p></article>)}</div>}
+          {!isEnhancing && activeTab === "checklist" && <div className="checklist-list">{(result.checklist?.length ? result.checklist : result.metrics.map((metric) => ({ item: metric.label, passed: metric.score >= 70, note: metric.insight }))).map((item) => <article className="check-row" key={item.item} data-passed={item.passed}><strong>{item.passed ? "✓" : "!"}</strong><div><b>{item.item}</b><p>{item.note}</p></div></article>)}</div>}
+          {!isEnhancing && activeTab === "export" && <pre className="prompt-output">{exportContent}</pre>}
+
+          <div className="test-panel">
+            <div>
+              <p className="section-kicker">Test prompt</p>
+              <h3>Preview real behavior</h3>
+            </div>
+            <textarea value={sampleInput} onChange={(event) => setSampleInput(event.target.value)} placeholder="Optional sample input/context for testing..." />
+            <button className="secondary-action" type="button" onClick={() => void runTestPrompt()} disabled={isTesting || !result.enhancedPrompt}>{isTesting ? "Testing..." : "Test enhanced prompt"}</button>
+            {testResult && <div className="test-result"><pre>{testResult.previewOutput}</pre><div className="consultant-grid"><section className="consultant-card"><h3>Strengths</h3><ul>{testResult.strengths.map((item) => <li key={item}>{item}</li>)}</ul></section><section className="consultant-card"><h3>Failure modes</h3><ul>{testResult.failureModes.map((item) => <li key={item}>{item}</li>)}</ul></section><section className="consultant-card"><h3>Tweaks</h3><ul>{testResult.recommendedTweaks.map((item) => <li key={item}>{item}</li>)}</ul></section></div></div>}
+          </div>
+
+          <div className="action-row">
+            <button id="copy-prompt" className="secondary-action" type="button" onClick={copyPrompt}>{copied ? "Copied" : "Copy prompt"}</button>
+            <button id="export-markdown" className="secondary-action" type="button" onClick={exportMarkdown}>Export Markdown</button>
+          </div>
+        </section>
+      </section>
+
+      <section className="support-grid">
         <section id="templates" className="panel">
           <div className="section-heading"><div><p className="section-kicker">Templates</p><h2>Quick starts</h2></div></div>
           <div className="template-list">{promptTemplates.slice(0, 6).map((template, index) => <button className="template-row" key={template.title} type="button" onClick={() => applyTemplate(index)}><span>{template.tag}</span><strong>{template.title}</strong><p>{template.prompt}</p></button>)}</div>
         </section>
 
-        <section className="panel history-panel" aria-labelledby="history-title">
-          <div className="section-heading"><div><p className="section-kicker">Library</p><h2 id="history-title">Recent prompts</h2></div><button className="secondary-action" type="button" onClick={() => persistHistory([])}>Clear</button></div>
-          <input className="history-search" value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder="Search history..." />
-          {filteredHistory.length === 0 ? <p className="empty-state">Chưa có prompt nào được lưu.</p> : <div className="history-list compact">{filteredHistory.map((item) => <article className="history-item" key={item.id}><button type="button" onClick={() => restoreHistory(item)}><span>{item.createdAt}</span><strong>{item.score}/100</strong><p>{item.input}</p></button><button className="favorite-button" type="button" onClick={() => toggleFavorite(item.id)}>{item.favorite ? "★" : "☆"}</button></article>)}</div>}
-        </section>
+        
       </section>
     </main>
   );
