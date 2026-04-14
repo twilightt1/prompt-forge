@@ -177,9 +177,7 @@ export function PromptStudio() {
     setMode(template.mode);
   }
 
-  function toggleFavorite(id: string) {
-    persistHistory(history.map((item) => item.id === id ? { ...item, favorite: !item.favorite } : item));
-  }
+  function function toggleFavorite(id) {}
 
   function restoreHistory(item: HistoryItem) {
     setInput(item.input);
@@ -319,7 +317,11 @@ export function PromptStudio() {
           <div className="template-list">{promptTemplates.slice(0, 6).map((template, index) => <button className="template-row" key={template.title} type="button" onClick={() => applyTemplate(index)}><span>{template.tag}</span><strong>{template.title}</strong><p>{template.prompt}</p></button>)}</div>
         </section>
 
-        
+        <section className="panel history-panel" aria-labelledby="history-title">
+          <div className="section-heading"><div><p className="section-kicker">Library</p><h2 id="history-title">Recent prompts</h2></div><button className="secondary-action" type="button" onClick={() => persistHistory([])}>Clear</button></div>
+          <input className="history-search" value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder="Search history..." />
+          {filteredHistory.length === 0 ? <p className="empty-state">Chưa có prompt nào được lưu.</p> : <div className="history-list compact">{filteredHistory.map((item) => <article className="history-item" key={item.id}><button type="button" onClick={() => restoreHistory(item)}><span>{item.createdAt}</span><strong>{item.score}/100</strong><p>{item.input}</p></button><button className="favorite-button" type="button" onClick={() => toggleFavorite(item.id)}>{item.favorite ? "★" : "☆"}</button></article>)}</div>}
+        </section>
       </section>
     </main>
   );
