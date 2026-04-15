@@ -177,7 +177,9 @@ export function PromptStudio() {
     setMode(template.mode);
   }
 
-  function function toggleFavorite(id) {}
+  function toggleFavorite(id: string) {
+    persistHistory(history.map((item) => item.id === id ? { ...item, favorite: !item.favorite } : item));
+  }
 
   function restoreHistory(item: HistoryItem) {
     setInput(item.input);
