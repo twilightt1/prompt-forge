@@ -166,7 +166,7 @@ export function PromptStudio() {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "enhanced-consultant-prompt.md";
+    anchor.download = "enhanced-prompt.md";
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -328,3 +328,5 @@ export function PromptStudio() {
     </main>
   );
 }
+
+// State refactoring completed
