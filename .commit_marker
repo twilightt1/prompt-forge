@@ -1,2 +1,2 @@
-Commit 37 - 2026-04-19T11:00:00
-Msg: docs: add agent-specific guidelines and Claude commands file
+Commit 38 - 2026-04-20T15:15:00
+Msg: fix: resolve client-side hydration mismatch and warning

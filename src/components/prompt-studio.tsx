@@ -328,5 +328,3 @@ export function PromptStudio() {
     </main>
   );
 }
-
-// State refactoring completed
