@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PromptForge — Enhanced Prompt Studio",
+  title: "PromptForge — Premium Prompt Optimization Studio",
   description:
     "Transform rough ideas into structured, production-grade AI prompts with scoring, templates, and local history.",
 };
