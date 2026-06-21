@@ -1,7 +1,7 @@
 import type { AiGuardrailsResult } from "@/lib/ai-result";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 type GuardrailsRequest = { prompt?: string; mode?: string };
 
 function extractJson(content: string): AiGuardrailsResult | null {

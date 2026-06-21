@@ -1,7 +1,7 @@
 import type { AiBenchmarkResult } from "@/lib/ai-result";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 type BenchmarkRequest = { original?: string; enhanced?: string; sampleInput?: string };
 
 function extractJson(content: string): AiBenchmarkResult | null {

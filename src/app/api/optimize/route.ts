@@ -1,7 +1,7 @@
 import type { AiOptimizeResult } from "@/lib/ai-result";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 type OptimizeRequest = { input?: string; enhancedPrompt?: string; analysisContext?: unknown };
 
 function extractJson(content: string): AiOptimizeResult | null {
