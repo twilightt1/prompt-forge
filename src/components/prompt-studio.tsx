@@ -5,7 +5,7 @@ import { enhancePrompt, promptModes, type PromptMode } from "@/lib/prompt-engine
 import { promptTemplates } from "@/lib/templates";
 import type { AiBenchmarkResult, AiEnhanceResult, AiGuardrailsResult, AiOptimizeResult, AiPromptAnalysis, AiPromptTestResult } from "@/lib/ai-result";
 import type { EnhanceLanguage, EnhanceStrength, EnhanceStyle, RewriteFramework, RewriteLevel, RewriteOutputGoal } from "@/lib/enhance-options";
-import { getOppositeLocale, getStoredLocale, setStoredLocale, translations, type Locale } from "@/lib/i18n";
+import { defaultLocale, getOppositeLocale, getStoredLocale, setStoredLocale, translations, type Locale } from "@/lib/i18n";
 
 type ResultTab = "improved" | "why" | "alternatives" | "safety" | "export";
 type StudioResult = AiEnhanceResult;
@@ -44,7 +44,8 @@ function intentPreset(intent: SimpleIntent): { mode: PromptMode; outputGoal: Rew
 
 export function PromptStudio() {
   const [input, setInput] = useState(starterPrompt);
-  const [locale, setLocale] = useState<Locale>(() => getStoredLocale());
+  const [locale, setLocale] = useState<Locale>(defaultLocale);
+  const [localeReady, setLocaleReady] = useState(false);
   const [simpleIntent, setSimpleIntent] = useState<SimpleIntent>("better-answer");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [mode, setMode] = useState<PromptMode>("marketing");
@@ -106,9 +107,16 @@ export function PromptStudio() {
   }, []);
 
   useEffect(() => {
+    queueMicrotask(() => {
+      setLocale(getStoredLocale());
+      setLocaleReady(true);
+    });
+  }, []);
+
+  useEffect(() => {
     document.documentElement.lang = locale;
-    setStoredLocale(locale);
-  }, [locale]);
+    if (localeReady) setStoredLocale(locale);
+  }, [locale, localeReady]);
 
   function persistHistory(items: HistoryItem[]) {
     setHistory(items);
