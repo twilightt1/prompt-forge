@@ -84,10 +84,11 @@ Rules:
 - Scores must be 0-100.`;
 }
 
-async function callOpenAiCompatible(args: { baseUrl: string; apiKey: string; model: string; system: string; user: string; temperature: number; jsonMode: boolean }) {
+async function callOpenAiCompatible(args: { baseUrl: string; apiKey: string; model: string; system: string; user: string; temperature: number; jsonMode: boolean; timeoutMs: number }) {
   const body: Record<string, unknown> = {
     model: args.model,
     temperature: args.temperature,
+    max_tokens: 2200,
     messages: [
       { role: "system", content: args.system },
       { role: "user", content: args.user },
@@ -99,6 +100,7 @@ async function callOpenAiCompatible(args: { baseUrl: string; apiKey: string; mod
     method: "POST",
     headers: { Authorization: `Bearer ${args.apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(args.timeoutMs),
   });
 }
 
@@ -150,9 +152,9 @@ export async function POST(request: Request) {
     const analysisContext = body.analysisContext ? `\n\nAnalysis context and clarifying answers:\n${JSON.stringify(body.analysisContext, null, 2)}` : "";
     const userMessage = `${input}${analysisContext}`;
 
-    let response = await callOpenAiCompatible({ baseUrl, apiKey, model, system, user: userMessage, temperature, jsonMode: true });
+    let response = await callOpenAiCompatible({ baseUrl, apiKey, model, system, user: userMessage, temperature, jsonMode: true, timeoutMs: 25000 });
     if (!response.ok && [400, 422].includes(response.status)) {
-      response = await callOpenAiCompatible({ baseUrl, apiKey, model, system, user: userMessage, temperature, jsonMode: false });
+      response = await callOpenAiCompatible({ baseUrl, apiKey, model, system, user: userMessage, temperature, jsonMode: false, timeoutMs: 18000 });
     }
     if (!response.ok) return Response.json({ error: `OpenAI-compatible API failed with status ${response.status}.` }, { status: 502 });
 
@@ -167,6 +169,12 @@ export async function POST(request: Request) {
     return Response.json(normalizeResult(enhancePrompt(input, mode), ai, startedAt, new URL(baseUrl).hostname, model));
   } catch (error) {
     console.error("AI consultant enhancement failed", error);
-    return Response.json({ error: "AI consultant enhancement failed. Check API key, model, and provider settings." }, { status: 500 });
+    return Response.json({
+      ...enhancePrompt("The upstream AI provider timed out or failed. Please retry, shorten the input, or choose a faster model.", "general"),
+      source: "local-fallback",
+      provider: "local",
+      model: "timeout fallback",
+      latencyMs: Math.round(performance.now() - startedAt),
+    } satisfies AiEnhanceResult);
   }
 }
