@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { enhancePrompt, promptModes, type PromptMode } from "@/lib/prompt-engine";
 import { promptTemplates } from "@/lib/templates";
 import type { AiBenchmarkResult, AiEnhanceResult, AiGuardrailsResult, AiOptimizeResult, AiPromptAnalysis, AiPromptTestResult } from "@/lib/ai-result";
-import type { EnhanceLanguage, EnhanceStrength, EnhanceStyle, RewriteFramework, RewriteLevel, RewriteOutputGoal, RewriteTargetModel } from "@/lib/enhance-options";
+import type { EnhanceLanguage, EnhanceStrength, EnhanceStyle, RewriteFramework, RewriteLevel, RewriteOutputGoal } from "@/lib/enhance-options";
 import { getOppositeLocale, getStoredLocale, setStoredLocale, translations, type Locale } from "@/lib/i18n";
 
 type ResultTab = "improved" | "why" | "alternatives" | "safety" | "export";
@@ -29,15 +29,15 @@ function asArray<T>(value: T[] | undefined | null): T[] {
   return Array.isArray(value) ? value : [];
 }
 
-function intentPreset(intent: SimpleIntent): { mode: PromptMode; outputGoal: RewriteOutputGoal; framework: RewriteFramework; rewriteLevel: RewriteLevel; targetModel: RewriteTargetModel; strength: EnhanceStrength } {
-  const presets: Record<SimpleIntent, { mode: PromptMode; outputGoal: RewriteOutputGoal; framework: RewriteFramework; rewriteLevel: RewriteLevel; targetModel: RewriteTargetModel; strength: EnhanceStrength }> = {
-    clearer: { mode: "general", outputGoal: "accurate-answer", framework: "rtf", rewriteLevel: "clean", targetModel: "auto", strength: "light" },
-    "better-answer": { mode: "general", outputGoal: "accurate-answer", framework: "craft", rewriteLevel: "expert", targetModel: "auto", strength: "balanced" },
-    plan: { mode: "research", outputGoal: "structured-plan", framework: "co-star", rewriteLevel: "expert", targetModel: "auto", strength: "balanced" },
-    coding: { mode: "coding", outputGoal: "code-generation", framework: "risen", rewriteLevel: "production", targetModel: "coding-agent", strength: "deep" },
-    marketing: { mode: "marketing", outputGoal: "marketing-copy", framework: "craft", rewriteLevel: "expert", targetModel: "auto", strength: "balanced" },
-    image: { mode: "image", outputGoal: "creative-ideation", framework: "tag", rewriteLevel: "structure", targetModel: "image-model", strength: "balanced" },
-    agent: { mode: "agentic", outputGoal: "agent-instruction", framework: "agent-spec", rewriteLevel: "agentic", targetModel: "coding-agent", strength: "deep" },
+function intentPreset(intent: SimpleIntent): { mode: PromptMode; outputGoal: RewriteOutputGoal; framework: RewriteFramework; rewriteLevel: RewriteLevel; strength: EnhanceStrength } {
+  const presets: Record<SimpleIntent, { mode: PromptMode; outputGoal: RewriteOutputGoal; framework: RewriteFramework; rewriteLevel: RewriteLevel; strength: EnhanceStrength }> = {
+    clearer: { mode: "general", outputGoal: "accurate-answer", framework: "rtf", rewriteLevel: "clean", strength: "light" },
+    "better-answer": { mode: "general", outputGoal: "accurate-answer", framework: "craft", rewriteLevel: "expert", strength: "balanced" },
+    plan: { mode: "research", outputGoal: "structured-plan", framework: "co-star", rewriteLevel: "expert", strength: "balanced" },
+    coding: { mode: "coding", outputGoal: "code-generation", framework: "risen", rewriteLevel: "production", strength: "deep" },
+    marketing: { mode: "marketing", outputGoal: "marketing-copy", framework: "craft", rewriteLevel: "expert", strength: "balanced" },
+    image: { mode: "image", outputGoal: "creative-ideation", framework: "tag", rewriteLevel: "structure", strength: "balanced" },
+    agent: { mode: "agentic", outputGoal: "agent-instruction", framework: "agent-spec", rewriteLevel: "agentic", strength: "deep" },
   };
   return presets[intent];
 }
@@ -54,7 +54,6 @@ export function PromptStudio() {
   const [outputGoal, setOutputGoal] = useState<RewriteOutputGoal>("structured-plan");
   const [framework, setFramework] = useState<RewriteFramework>("auto");
   const [rewriteLevel, setRewriteLevel] = useState<RewriteLevel>("expert");
-  const [targetModel, setTargetModel] = useState<RewriteTargetModel>("auto");
   const [activeTab, setActiveTab] = useState<ResultTab>("improved");
   const [result, setResult] = useState<StudioResult>(() => ({
     ...enhancePrompt(starterPrompt, "marketing"),
@@ -163,7 +162,7 @@ export function PromptStudio() {
     const effectiveOutputGoal = showAdvanced ? outputGoal : preset.outputGoal;
     const effectiveFramework = showAdvanced ? framework : preset.framework;
     const effectiveRewriteLevel = showAdvanced ? rewriteLevel : preset.rewriteLevel;
-    const effectiveTargetModel = showAdvanced ? targetModel : preset.targetModel;
+    const effectiveTargetModel = "auto";
 
     try {
       const response = await fetch("/api/enhance", {
@@ -320,7 +319,11 @@ export function PromptStudio() {
             <span>{t.navSubtitle}</span>
           </div>
           <p className="api-status">{t.apiStatus}</p>
-          <button className="locale-toggle" type="button" aria-label={t.localeAria} onClick={() => setLocale(getOppositeLocale(locale))}>{t.localeLabel}</button>
+          <button className="locale-toggle" type="button" aria-label={t.localeAria} onClick={() => setLocale(getOppositeLocale(locale))}>
+            <span className="locale-option" data-active={locale === "en"}>EN</span>
+            <span className="locale-option" data-active={locale === "vi"}>VI</span>
+            <span className="sr-only">{t.localeLabel}</span>
+          </button>
         </nav>
 
         <section className="hero-content">
@@ -360,7 +363,6 @@ export function PromptStudio() {
             <label>{t.strength}<select value={strength} onChange={(event) => setStrength(event.target.value as EnhanceStrength)}><option value="light">{t.lightRewrite}</option><option value="balanced">{t.balanced}</option><option value="deep">{t.deepConsultant}</option></select></label>
             <label>{t.framework}<select value={framework} onChange={(event) => setFramework(event.target.value as RewriteFramework)}><option value="auto">{t.auto}</option><option value="rtf">RTF</option><option value="craft">CRAFT</option><option value="co-star">CO-STAR</option><option value="tag">TAG</option><option value="risen">RISEN</option><option value="agent-spec">Agent Spec</option><option value="json-contract">JSON Contract</option></select></label>
             <label>{t.rewriteLevel}<select value={rewriteLevel} onChange={(event) => setRewriteLevel(event.target.value as RewriteLevel)}><option value="clean">Clean</option><option value="structure">Structure</option><option value="expert">Expert</option><option value="production">Production</option><option value="agentic">Agentic</option></select></label>
-            <label>{t.targetModel}<select value={targetModel} onChange={(event) => setTargetModel(event.target.value as RewriteTargetModel)}><option value="auto">{t.auto}</option><option value="gpt">GPT/OpenAI</option><option value="claude">Claude</option><option value="gemini">Gemini</option><option value="llama">Llama/OpenRouter</option><option value="image-model">Image model</option><option value="coding-agent">Coding agent</option></select></label>
             <label>{t.outputGoal}<select value={outputGoal} onChange={(event) => setOutputGoal(event.target.value as RewriteOutputGoal)}><option value="accurate-answer">Accurate answer</option><option value="structured-plan">Structured plan</option><option value="json-api">JSON/API output</option><option value="creative-ideation">Creative ideation</option><option value="code-generation">Code generation</option><option value="agent-instruction">Agent instruction</option><option value="research-synthesis">Research synthesis</option><option value="marketing-copy">Marketing copy</option></select></label>
           </div>}
 
