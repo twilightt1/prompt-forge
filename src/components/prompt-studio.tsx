@@ -418,7 +418,7 @@ export function PromptStudio() {
 
           <div className="status-row">
             <p className="source-pill" data-source={result.source}>{result.source === "llm" ? t.aiEnhanced : t.diagnostics}</p>
-            <p className="meta-pill">{result.model ?? t.unknownModel}</p>
+            {/* <p className="meta-pill">{result.model ?? t.unknownModel}</p> */}
             {typeof result.latencyMs === "number" && <p className="meta-pill">{result.latencyMs}ms</p>}
           </div>
 
