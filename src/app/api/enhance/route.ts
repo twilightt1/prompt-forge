@@ -32,6 +32,10 @@ function isOneOf<T extends string>(value: unknown, options: readonly T[]): value
   return typeof value === "string" && options.includes(value as T);
 }
 
+function isTimeoutError(error: unknown) {
+  return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+}
+
 function extractJson(content: string): AiPayload | null {
   const fenced = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)?.[1];
   const candidate = fenced ?? content;
@@ -168,12 +172,16 @@ export async function POST(request: Request) {
 
     return Response.json(normalizeResult(enhancePrompt(input, mode), ai, startedAt, new URL(baseUrl).hostname, model));
   } catch (error) {
-    console.error("AI consultant enhancement failed", error);
+    if (isTimeoutError(error)) {
+      console.warn("AI provider timed out; returning local fallback.");
+    } else {
+      console.error("AI consultant enhancement failed", error);
+    }
     return Response.json({
-      ...enhancePrompt("The upstream AI provider timed out or failed. Please retry, shorten the input, or choose a faster model.", "general"),
+      ...enhancePrompt(input || "Improve this prompt.", mode || "general"),
       source: "local-fallback",
       provider: "local",
-      model: "timeout fallback",
+      model: isTimeoutError(error) ? "provider timeout fallback" : "provider error fallback",
       latencyMs: Math.round(performance.now() - startedAt),
     } satisfies AiEnhanceResult);
   }
