@@ -43,58 +43,39 @@ function extractJson(content: string): AiPayload | null {
 
 function createSystemPrompt(mode: PromptMode, language: EnhanceLanguage, strength: EnhanceStrength, style: EnhanceStyle, profile: { outputGoal: RewriteOutputGoal; framework: RewriteFramework; rewriteLevel: RewriteLevel; targetModel: RewriteTargetModel }) {
   const languagePolicy = {
-    auto: "Detect the user's input language and write the improved prompt in that same language. If the input mixes languages, choose the language that best matches the user's likely intent.",
+    auto: "Detect the user's input language and write the improved prompt in that same language.",
     english: "Write the improved prompt and every user-facing JSON string in English only.",
-    vietnamese: "Write the improved prompt and every user-facing JSON string in professional, natural Vietnamese only. Do not write the improved prompt in English unless the user's original prompt explicitly asks for English output.",
-    bilingual: "Write the improved prompt bilingually: Vietnamese first, then English. Keep every user-facing JSON string bilingual where practical.",
+    vietnamese: "Write the improved prompt and every user-facing JSON string in professional, natural Vietnamese only. Translate all structural headings inside the prompt.",
+    bilingual: "Write the improved prompt bilingually: Vietnamese first, then English.",
   } satisfies Record<EnhanceLanguage, string>;
 
-  return `You are PromptForge Rewrite Engine v2, an expert AI prompt rewrite strategist. Rewrite and improve the user's prompt for ${mode} work.
+  return `You are PromptForge Fast Rewrite Engine, an expert prompt consultant. Rewrite the user's prompt for ${mode} work.
 
 Controls: language=${language}, strength=${strength}, style=${style}
 Language policy: ${languagePolicy[language]}
 Rewrite profile: outputGoal=${profile.outputGoal}, framework=${profile.framework}, level=${profile.rewriteLevel}, targetModel=${profile.targetModel}
-
-Apply the rewrite profile:
-- outputGoal controls the desired answer shape and success criteria.
-- framework controls the prompt structure. If framework=auto, choose the best framework and report it.
-- level controls rewrite depth: clean < structure < expert < production < agentic.
-- targetModel controls compatibility. For llama/openrouter, prefer simpler explicit instructions and robust JSON warnings. For agent targets, include role, tools, constraints, state, stop conditions, and success criteria.
 
 Return ONLY valid JSON. No markdown fences. Shape:
 {
   "enhancedPrompt": "string",
   "summary": "string",
   "improvements": ["string"],
-  "evaluation": {
-    "score": 0,
-    "grade": "string",
-    "criteria": [{"label":"Clarity","score":0,"insight":"string"}],
-    "issues": ["string"],
-    "suggestions": ["string"]
-  },
-  "clarifyingQuestions": ["string"],
-  "variants": [{"name":"Concise","prompt":"string","bestFor":"string"}],
-  "changes": [{"title":"string","before":"string","after":"string","reason":"string"}],
-  "checklist": [{"item":"string","passed":true,"note":"string"}],
-  "metadata": {"title":"string","tags":["string"],"bestFor":["string"]},
-  "rewriteProfile": {"outputGoal":"${profile.outputGoal}","framework":"${profile.framework}","level":"${profile.rewriteLevel}","targetModel":"${profile.targetModel}"},
-  "qualityContract": {"mustImprove":["string"],"mustPreserve":["string"],"mustAvoid":["string"]},
-  "semanticDiff": [{"category":"Added output format","impact":"low|medium|high","before":"string","after":"string","why":"string"}]
+  "evaluation": { "score": 0, "grade": "string", "suggestions": ["string"] },
+  "metadata": { "title": "string", "tags": ["string"], "bestFor": ["string"] }
 }
 
 Rules:
 - Do not answer the user's task. Rewrite the prompt.
-- Preserve intent.
-- The selected language policy is mandatory for enhancedPrompt, variants.prompt, summary, improvements, issues, suggestions, questions, checklist, changes, metadata, and qualityContract.
-- If language=vietnamese, translate structural headings inside enhancedPrompt too, for example Role, Objective, Context, Constraints, Workflow, Output Format, and Success Criteria must be Vietnamese.
-- Include role, objective, context, constraints, workflow, output format, and success criteria.
-- Provide exactly 3 variants: Concise, Structured, Expert.
-- Give 0-3 clarifying questions only when useful.
+- Preserve intent and important details.
+- Improve clarity, context, constraints, workflow, output format, and success criteria.
+- Keep enhancedPrompt practical and ready to paste into an AI tool.
+- Use 3-5 concise improvements only.
+- The selected language policy is mandatory for all user-facing JSON strings.
+- If language=vietnamese, headings like Role, Objective, Context, Constraints, Workflow, Output Format, and Success Criteria must be Vietnamese.
 - Scores must be 0-100.`;
 }
 
-async function callOpenAiCompatible(args: { baseUrl: string; apiKey: string; model: string; system: string; user: string; temperature: number; jsonMode: boolean }) {
+async function callOpenAiCompatible(args: { baseUrl: string; apiKey: string; model: string; system: string; user: string; temperature: number; jsonMode: boolean; maxTokens?: number }) {
   const body: Record<string, unknown> = {
     model: args.model,
     temperature: args.temperature,
@@ -103,6 +84,10 @@ async function callOpenAiCompatible(args: { baseUrl: string; apiKey: string; mod
       { role: "user", content: args.user },
     ],
   };
+  if (args.maxTokens) {
+    body.max_tokens = args.maxTokens;
+    body.max_completion_tokens = args.maxTokens;
+  }
   if (args.jsonMode) body.response_format = { type: "json_object" };
 
   return fetch(`${args.baseUrl.replace(/\/$/, "")}/chat/completions`, {
@@ -153,16 +138,16 @@ export async function POST(request: Request) {
     if (!apiKey || apiKey === "your_api_key_here") return Response.json({ error: "OPENAI_API_KEY is required for AI enhancement." }, { status: 500 });
 
     const baseUrl = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
-    const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+    const model = process.env.OPENAI_MODEL_FAST ?? process.env.OPENAI_MODEL ?? "gpt-4o-mini";
     const system = createSystemPrompt(mode, language, strength, style, { outputGoal, framework, rewriteLevel, targetModel });
     const temperature = style === "creative" ? 0.75 : 0.35;
 
     const analysisContext = body.analysisContext ? `\n\nAnalysis context and clarifying answers:\n${JSON.stringify(body.analysisContext, null, 2)}` : "";
     const userMessage = `${input}${analysisContext}`;
 
-    let response = await callOpenAiCompatible({ baseUrl, apiKey, model, system, user: userMessage, temperature, jsonMode: true });
+    let response = await callOpenAiCompatible({ baseUrl, apiKey, model, system, user: userMessage, temperature, jsonMode: true, maxTokens: 1800 });
     if (!response.ok && [400, 422].includes(response.status)) {
-      response = await callOpenAiCompatible({ baseUrl, apiKey, model, system, user: userMessage, temperature, jsonMode: false });
+      response = await callOpenAiCompatible({ baseUrl, apiKey, model, system, user: userMessage, temperature, jsonMode: false, maxTokens: 1800 });
     }
     if (!response.ok) return Response.json({ error: `OpenAI-compatible API failed with status ${response.status}.` }, { status: 502 });
 

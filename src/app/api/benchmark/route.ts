@@ -19,7 +19,7 @@ export async function POST(request: Request) {
 
   const apiKey = process.env.OPENAI_API_KEY;
   const baseUrl = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
-  const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+  const model = process.env.OPENAI_MODEL_DEEP ?? process.env.OPENAI_MODEL ?? "gpt-4o-mini";
   if (!apiKey || apiKey === "your_api_key_here") return Response.json({ error: "OPENAI_API_KEY is required for benchmark." }, { status: 500 });
 
   const system = `Benchmark two prompts. Return ONLY JSON:
