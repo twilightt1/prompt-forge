@@ -1,3 +1,4 @@
+import type { RewriteFramework, RewriteLevel, RewriteOutputGoal, RewriteTargetModel } from "./enhance-options";
 import type { PromptMode } from "./prompt-engine";
 import type { EnhancedPromptResult } from "./prompt-engine";
 
@@ -61,6 +62,64 @@ export type AiPromptTestResult = {
   recommendedTweaks: string[];
 };
 
+export type AiOptimizeIteration = {
+  version: number;
+  prompt: string;
+  score: number;
+  critique: string;
+  changes: string[];
+};
+
+export type AiOptimizeResult = {
+  iterations: AiOptimizeIteration[];
+  finalPrompt: string;
+  finalScore: number;
+  reasoningSummary: string;
+  remainingRisks: string[];
+};
+
+export type AiBenchmarkMetric = {
+  metric: string;
+  original: number;
+  enhanced: number;
+  reason: string;
+};
+
+export type AiBenchmarkResult = {
+  originalScore: number;
+  enhancedScore: number;
+  winner: "original" | "enhanced" | "tie";
+  summary: string;
+  comparison: AiBenchmarkMetric[];
+};
+
+export type AiGuardrailsResult = {
+  guardrails: string[];
+  failurePrevention: string[];
+  promptAddendum: string;
+};
+
+export type RewriteProfile = {
+  outputGoal: RewriteOutputGoal;
+  framework: RewriteFramework;
+  level: RewriteLevel;
+  targetModel: RewriteTargetModel;
+};
+
+export type AiQualityContract = {
+  mustImprove: string[];
+  mustPreserve: string[];
+  mustAvoid: string[];
+};
+
+export type AiSemanticDiffItem = {
+  category: string;
+  impact: "low" | "medium" | "high";
+  before: string;
+  after: string;
+  why: string;
+};
+
 export type AiEnhanceResult = EnhancedPromptResult & {
   source: "llm" | "local-fallback";
   provider?: string;
@@ -72,4 +131,7 @@ export type AiEnhanceResult = EnhancedPromptResult & {
   changes?: AiChange[];
   checklist?: AiChecklistItem[];
   metadata?: AiMetadata;
+  rewriteProfile?: RewriteProfile;
+  qualityContract?: AiQualityContract;
+  semanticDiff?: AiSemanticDiffItem[];
 };

@@ -1,7 +1,9 @@
 import { enhancePrompt, type EnhancedPromptResult, type PromptMode } from "@/lib/prompt-engine";
 import type { AiEnhanceResult } from "@/lib/ai-result";
-import type { EnhanceLanguage, EnhanceStrength, EnhanceStyle } from "@/lib/enhance-options";
+import type { EnhanceLanguage, EnhanceStrength, EnhanceStyle, RewriteFramework, RewriteLevel, RewriteOutputGoal, RewriteTargetModel } from "@/lib/enhance-options";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
 type EnhanceRequest = {
   input?: string;
   mode?: PromptMode;
@@ -9,6 +11,10 @@ type EnhanceRequest = {
   strength?: EnhanceStrength;
   style?: EnhanceStyle;
   analysisContext?: unknown;
+  outputGoal?: RewriteOutputGoal;
+  framework?: RewriteFramework;
+  rewriteLevel?: RewriteLevel;
+  targetModel?: RewriteTargetModel;
 };
 type AiPayload = Partial<Omit<AiEnhanceResult, keyof EnhancedPromptResult | "source" | "provider" | "model" | "latencyMs">> & { enhancedPrompt?: string; summary?: string; improvements?: string[] };
 
@@ -16,6 +22,10 @@ const validModes: PromptMode[] = ["general", "coding", "marketing", "image", "re
 const validLanguages: EnhanceLanguage[] = ["auto", "english", "vietnamese", "bilingual"];
 const validStrengths: EnhanceStrength[] = ["light", "balanced", "deep"];
 const validStyles: EnhanceStyle[] = ["professional", "creative", "technical", "concise"];
+const validOutputGoals: RewriteOutputGoal[] = ["accurate-answer", "structured-plan", "json-api", "creative-ideation", "code-generation", "agent-instruction", "research-synthesis", "marketing-copy"];
+const validFrameworks: RewriteFramework[] = ["auto", "rtf", "craft", "co-star", "tag", "risen", "agent-spec", "json-contract"];
+const validRewriteLevels: RewriteLevel[] = ["clean", "structure", "expert", "production", "agentic"];
+const validTargetModels: RewriteTargetModel[] = ["auto", "gpt", "claude", "gemini", "llama", "image-model", "coding-agent"];
 const maxInputLength = 12000;
 
 function isOneOf<T extends string>(value: unknown, options: readonly T[]): value is T {
@@ -31,10 +41,17 @@ function extractJson(content: string): AiPayload | null {
   try { return JSON.parse(candidate.slice(firstBrace, lastBrace + 1)) as AiPayload; } catch { return null; }
 }
 
-function createSystemPrompt(mode: PromptMode, language: EnhanceLanguage, strength: EnhanceStrength, style: EnhanceStyle) {
-  return `You are PromptForge, an AI prompt consultant. Rewrite and improve the user's prompt for ${mode} work.
+function createSystemPrompt(mode: PromptMode, language: EnhanceLanguage, strength: EnhanceStrength, style: EnhanceStyle, profile: { outputGoal: RewriteOutputGoal; framework: RewriteFramework; rewriteLevel: RewriteLevel; targetModel: RewriteTargetModel }) {
+  return `You are PromptForge Rewrite Engine v2, an expert AI prompt rewrite strategist. Rewrite and improve the user's prompt for ${mode} work.
 
 Controls: language=${language}, strength=${strength}, style=${style}
+Rewrite profile: outputGoal=${profile.outputGoal}, framework=${profile.framework}, level=${profile.rewriteLevel}, targetModel=${profile.targetModel}
+
+Apply the rewrite profile:
+- outputGoal controls the desired answer shape and success criteria.
+- framework controls the prompt structure. If framework=auto, choose the best framework and report it.
+- level controls rewrite depth: clean < structure < expert < production < agentic.
+- targetModel controls compatibility. For llama/openrouter, prefer simpler explicit instructions and robust JSON warnings. For agent targets, include role, tools, constraints, state, stop conditions, and success criteria.
 
 Return ONLY valid JSON. No markdown fences. Shape:
 {
@@ -52,7 +69,10 @@ Return ONLY valid JSON. No markdown fences. Shape:
   "variants": [{"name":"Concise","prompt":"string","bestFor":"string"}],
   "changes": [{"title":"string","before":"string","after":"string","reason":"string"}],
   "checklist": [{"item":"string","passed":true,"note":"string"}],
-  "metadata": {"title":"string","tags":["string"],"bestFor":["string"]}
+  "metadata": {"title":"string","tags":["string"],"bestFor":["string"]},
+  "rewriteProfile": {"outputGoal":"${profile.outputGoal}","framework":"${profile.framework}","level":"${profile.rewriteLevel}","targetModel":"${profile.targetModel}"},
+  "qualityContract": {"mustImprove":["string"],"mustPreserve":["string"],"mustAvoid":["string"]},
+  "semanticDiff": [{"category":"Added output format","impact":"low|medium|high","before":"string","after":"string","why":"string"}]
 }
 
 Rules:
@@ -98,6 +118,9 @@ function normalizeResult(diagnostics: EnhancedPromptResult, ai: AiPayload, start
     changes: ai.changes ?? [],
     checklist: ai.checklist ?? [],
     metadata: ai.metadata,
+    rewriteProfile: ai.rewriteProfile,
+    qualityContract: ai.qualityContract,
+    semanticDiff: ai.semanticDiff ?? [],
   };
 }
 
@@ -110,6 +133,10 @@ export async function POST(request: Request) {
     const language = isOneOf(body.language, validLanguages) ? body.language : "auto";
     const strength = isOneOf(body.strength, validStrengths) ? body.strength : "balanced";
     const style = isOneOf(body.style, validStyles) ? body.style : "professional";
+    const outputGoal = isOneOf(body.outputGoal, validOutputGoals) ? body.outputGoal : "structured-plan";
+    const framework = isOneOf(body.framework, validFrameworks) ? body.framework : "auto";
+    const rewriteLevel = isOneOf(body.rewriteLevel, validRewriteLevels) ? body.rewriteLevel : "expert";
+    const targetModel = isOneOf(body.targetModel, validTargetModels) ? body.targetModel : "auto";
     if (!input) return Response.json({ error: "Prompt input is required." }, { status: 400 });
 
     const apiKey = process.env.OPENAI_API_KEY;
@@ -117,7 +144,7 @@ export async function POST(request: Request) {
 
     const baseUrl = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
     const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
-    const system = createSystemPrompt(mode, language, strength, style);
+    const system = createSystemPrompt(mode, language, strength, style, { outputGoal, framework, rewriteLevel, targetModel });
     const temperature = style === "creative" ? 0.75 : 0.35;
 
     const analysisContext = body.analysisContext ? `\n\nAnalysis context and clarifying answers:\n${JSON.stringify(body.analysisContext, null, 2)}` : "";

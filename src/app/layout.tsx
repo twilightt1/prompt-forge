@@ -12,10 +12,38 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://promptforge.vercel.app";
+
 export const metadata: Metadata = {
-  title: "PromptForge — Enhanced Prompt Studio",
+  metadataBase: new URL(appUrl),
+  title: {
+    default: "PromptForge — Production AI Prompt Studio",
+    template: "%s | PromptForge",
+  },
   description:
-    "Transform rough ideas into structured, production-grade AI prompts with scoring, templates, and local history.",
+    "Rewrite, optimize, benchmark, and guardrail production-grade AI prompts with an English/Vietnamese user interface and OpenAI-compatible workflow.",
+  applicationName: "PromptForge",
+  keywords: ["AI prompt optimizer", "prompt engineering", "OpenRouter", "OpenAI", "Vercel", "prompt rewrite"],
+  authors: [{ name: "PromptForge" }],
+  creator: "PromptForge",
+  publisher: "PromptForge",
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: "PromptForge — Production AI Prompt Studio",
+    description: "Rewrite, optimize, benchmark, and guardrail production-grade AI prompts with English/Vietnamese UI support.",
+    url: "/",
+    siteName: "PromptForge",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PromptForge — Production AI Prompt Studio",
+    description: "Rewrite, optimize, benchmark, and guardrail production-grade AI prompts with English/Vietnamese UI support.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({

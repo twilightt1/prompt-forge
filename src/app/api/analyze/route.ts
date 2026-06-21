@@ -1,6 +1,8 @@
 import type { AiPromptAnalysis } from "@/lib/ai-result";
 import type { PromptMode } from "@/lib/prompt-engine";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
 type AnalyzeRequest = { input?: string };
 const modes: PromptMode[] = ["general", "coding", "marketing", "image", "research", "agentic"];
 

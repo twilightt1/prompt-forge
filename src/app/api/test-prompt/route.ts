@@ -1,5 +1,7 @@
 import type { AiPromptTestResult } from "@/lib/ai-result";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
 type TestPromptRequest = { prompt?: string; sampleInput?: string };
 
 function extractJson(content: string): AiPromptTestResult | null {
