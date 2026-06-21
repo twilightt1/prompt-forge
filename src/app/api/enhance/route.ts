@@ -3,7 +3,7 @@ import type { AiEnhanceResult } from "@/lib/ai-result";
 import type { EnhanceLanguage, EnhanceStrength, EnhanceStyle, RewriteFramework, RewriteLevel, RewriteOutputGoal, RewriteTargetModel } from "@/lib/enhance-options";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 type EnhanceRequest = {
   input?: string;
   mode?: PromptMode;
@@ -42,9 +42,17 @@ function extractJson(content: string): AiPayload | null {
 }
 
 function createSystemPrompt(mode: PromptMode, language: EnhanceLanguage, strength: EnhanceStrength, style: EnhanceStyle, profile: { outputGoal: RewriteOutputGoal; framework: RewriteFramework; rewriteLevel: RewriteLevel; targetModel: RewriteTargetModel }) {
+  const languagePolicy = {
+    auto: "Detect the user's input language and write the improved prompt in that same language. If the input mixes languages, choose the language that best matches the user's likely intent.",
+    english: "Write the improved prompt and every user-facing JSON string in English only.",
+    vietnamese: "Write the improved prompt and every user-facing JSON string in professional, natural Vietnamese only. Do not write the improved prompt in English unless the user's original prompt explicitly asks for English output.",
+    bilingual: "Write the improved prompt bilingually: Vietnamese first, then English. Keep every user-facing JSON string bilingual where practical.",
+  } satisfies Record<EnhanceLanguage, string>;
+
   return `You are PromptForge Rewrite Engine v2, an expert AI prompt rewrite strategist. Rewrite and improve the user's prompt for ${mode} work.
 
 Controls: language=${language}, strength=${strength}, style=${style}
+Language policy: ${languagePolicy[language]}
 Rewrite profile: outputGoal=${profile.outputGoal}, framework=${profile.framework}, level=${profile.rewriteLevel}, targetModel=${profile.targetModel}
 
 Apply the rewrite profile:
@@ -78,6 +86,8 @@ Return ONLY valid JSON. No markdown fences. Shape:
 Rules:
 - Do not answer the user's task. Rewrite the prompt.
 - Preserve intent.
+- The selected language policy is mandatory for enhancedPrompt, variants.prompt, summary, improvements, issues, suggestions, questions, checklist, changes, metadata, and qualityContract.
+- If language=vietnamese, translate structural headings inside enhancedPrompt too, for example Role, Objective, Context, Constraints, Workflow, Output Format, and Success Criteria must be Vietnamese.
 - Include role, objective, context, constraints, workflow, output format, and success criteria.
 - Provide exactly 3 variants: Concise, Structured, Expert.
 - Give 0-3 clarifying questions only when useful.

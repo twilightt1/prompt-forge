@@ -10,6 +10,8 @@
       ]
     }
   ],
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "fluid": true,
   "functions": {
     "src/app/api/analyze/route.ts": { "maxDuration": 60 },
     "src/app/api/benchmark/route.ts": { "maxDuration": 60 },
