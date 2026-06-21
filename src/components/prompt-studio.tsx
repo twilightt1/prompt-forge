@@ -347,7 +347,7 @@ export function PromptStudio() {
           <div className="hero-metrics" aria-label="Current prompt metrics">
             <article><span>{t.score}</span><strong>{displayScore}</strong><small>{displayGrade}</small></article>
             <article><span>{t.mode}</span><strong>{activeMode?.label ?? mode}</strong><small>{style}</small></article>
-            <article><span>{t.engine}</span><strong>{result.source === "llm" ? t.ai : t.local}</strong><small>{result.model ?? t.diagnosticsSmall}</small></article>
+            <article><span>{t.engine}</span><strong>{result.source === "llm" ? t.ai : t.local}</strong><small>{result.model ? "Deep Analysis" : t.diagnosticsSmall}</small></article>
           </div>
         </section>
       </header>
@@ -419,7 +419,7 @@ export function PromptStudio() {
           <div className="status-row">
             <p className="source-pill" data-source={result.source}>{result.source === "llm" ? t.aiEnhanced : t.diagnostics}</p>
             {/* <p className="meta-pill">{result.model ?? t.unknownModel}</p> */}
-            {typeof result.latencyMs === "number" && <p className="meta-pill">{result.latencyMs}ms</p>}
+            {typeof result.latencyMs === "number" && <p className="meta-pill">{result.latencyMs > 60000 ? `${Math.floor(result.latencyMs / 60000) > 0 ? `${Math.floor(result.latencyMs / 60000)}m ` : ""}${Math.floor((result.latencyMs % 60000) / 1000)}s` : `${result.latencyMs}ms`}</p>}
           </div>
 
           <div className="tab-row" role="tablist" aria-label={t.resultTabsAria}>
