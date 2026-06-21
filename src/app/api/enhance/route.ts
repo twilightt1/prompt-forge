@@ -32,10 +32,6 @@ function isOneOf<T extends string>(value: unknown, options: readonly T[]): value
   return typeof value === "string" && options.includes(value as T);
 }
 
-function isTimeoutError(error: unknown) {
-  return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
-}
-
 function extractJson(content: string): AiPayload | null {
   const fenced = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)?.[1];
   const candidate = fenced ?? content;
@@ -88,11 +84,10 @@ Rules:
 - Scores must be 0-100.`;
 }
 
-async function callOpenAiCompatible(args: { baseUrl: string; apiKey: string; model: string; system: string; user: string; temperature: number; jsonMode: boolean; timeoutMs: number }) {
+async function callOpenAiCompatible(args: { baseUrl: string; apiKey: string; model: string; system: string; user: string; temperature: number; jsonMode: boolean }) {
   const body: Record<string, unknown> = {
     model: args.model,
     temperature: args.temperature,
-    max_tokens: 2200,
     messages: [
       { role: "system", content: args.system },
       { role: "user", content: args.user },
@@ -104,7 +99,6 @@ async function callOpenAiCompatible(args: { baseUrl: string; apiKey: string; mod
     method: "POST",
     headers: { Authorization: `Bearer ${args.apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(args.timeoutMs),
   });
 }
 
@@ -156,9 +150,9 @@ export async function POST(request: Request) {
     const analysisContext = body.analysisContext ? `\n\nAnalysis context and clarifying answers:\n${JSON.stringify(body.analysisContext, null, 2)}` : "";
     const userMessage = `${input}${analysisContext}`;
 
-    let response = await callOpenAiCompatible({ baseUrl, apiKey, model, system, user: userMessage, temperature, jsonMode: true, timeoutMs: 25000 });
+    let response = await callOpenAiCompatible({ baseUrl, apiKey, model, system, user: userMessage, temperature, jsonMode: true });
     if (!response.ok && [400, 422].includes(response.status)) {
-      response = await callOpenAiCompatible({ baseUrl, apiKey, model, system, user: userMessage, temperature, jsonMode: false, timeoutMs: 18000 });
+      response = await callOpenAiCompatible({ baseUrl, apiKey, model, system, user: userMessage, temperature, jsonMode: false });
     }
     if (!response.ok) return Response.json({ error: `OpenAI-compatible API failed with status ${response.status}.` }, { status: 502 });
 
@@ -172,17 +166,7 @@ export async function POST(request: Request) {
 
     return Response.json(normalizeResult(enhancePrompt(input, mode), ai, startedAt, new URL(baseUrl).hostname, model));
   } catch (error) {
-    if (isTimeoutError(error)) {
-      console.warn("AI provider timed out; returning local fallback.");
-    } else {
-      console.error("AI consultant enhancement failed", error);
-    }
-    return Response.json({
-      ...enhancePrompt(input || "Improve this prompt.", mode || "general"),
-      source: "local-fallback",
-      provider: "local",
-      model: isTimeoutError(error) ? "provider timeout fallback" : "provider error fallback",
-      latencyMs: Math.round(performance.now() - startedAt),
-    } satisfies AiEnhanceResult);
+    console.error("AI consultant enhancement failed", error);
+    return Response.json({ error: "AI consultant enhancement failed. Check API key, model, and provider settings." }, { status: 500 });
   }
 }
