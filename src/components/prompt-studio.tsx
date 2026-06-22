@@ -91,7 +91,7 @@ export function PromptStudio() {
   const activeMode = promptModes.find((item) => item.id === mode);
   const displayScore = result.evaluation?.score ?? result.score;
   const displayGrade = result.evaluation?.grade ?? result.grade;
-  const exportContent = `# ${result.metadata?.title ?? t.exportTitle}\n\n${t.score}: ${displayScore}/100 (${displayGrade})\nSource: ${result.source}\nModel: ${result.model ?? t.unknownModel}\n\n## ${t.exportPrompt}\n\n\`\`\`text\n${result.enhancedPrompt}\n\`\`\`\n\n## ${t.exportSummary}\n${result.summary}\n\n## ${t.exportImprovements}\n${asArray(result.improvements).map((item) => `- ${item}`).join("\n")}\n\n## ${t.exportIssues}\n${asArray(result.evaluation?.issues).map((item) => `- ${item}`).join("\n")}\n\n## ${t.exportSuggestions}\n${asArray(result.evaluation?.suggestions).map((item) => `- ${item}`).join("\n")}\n\n## ${t.exportQuestions}\n${asArray(result.clarifyingQuestions).map((item) => `- ${item}`).join("\n")}`;
+  const exportContent = `# ${result.metadata?.title ?? t.exportTitle}\n\n${t.score}: ${displayScore}/100 (${displayGrade})\nSource: ${result.source}\n\n## ${t.exportPrompt}\n\n\`\`\`text\n${result.enhancedPrompt}\n\`\`\`\n\n## ${t.exportSummary}\n${result.summary}\n\n## ${t.exportImprovements}\n${asArray(result.improvements).map((item) => `- ${item}`).join("\n")}\n\n## ${t.exportIssues}\n${asArray(result.evaluation?.issues).map((item) => `- ${item}`).join("\n")}\n\n## ${t.exportSuggestions}\n${asArray(result.evaluation?.suggestions).map((item) => `- ${item}`).join("\n")}\n\n## ${t.exportQuestions}\n${asArray(result.clarifyingQuestions).map((item) => `- ${item}`).join("\n")}`;
 
   const filteredHistory = useMemo(() => {
     const query = historyQuery.toLowerCase().trim();
